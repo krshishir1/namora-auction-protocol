@@ -1,11 +1,59 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
+
+import { useWalletClient } from "wagmi";
+import { OrderbookType, viemToEthersSigner, createDomaOrderbookClient, getDomaOrderbookClient } from '@doma-protocol/orderbook-sdk';
+
+import { doma_config } from "@/lib/doma";
+import { useEffect } from "react";
+
+import { Seaport } from '@opensea/seaport-js'
 
 const Hero = () => {
   const scrollingDomains = [
     "crypto.eth", "ai.com", "blockchain.xyz", "web3.io", "defi.org",
     "nft.world", "meta.space", "future.tech", "digital.life", "smart.city"
   ];
+
+  const { data: walletClient } = useWalletClient();
+
+  // useEffect(() => {
+  //   createDomaOrderbookClient(doma_config as any)
+  // }, [])
+
+  const handleListing = async function () {
+
+    if (!walletClient) return;
+
+    const signer = viemToEthersSigner(walletClient, 'eip155:11155111');
+    const client = createDomaOrderbookClient(doma_config as any)
+
+    const contractAddress = "0x9A374915648f1352827fFbf0A7bB5752b6995eB7"
+    const tokenID = "39316063872579080061962078010002147806978652175747469946256816784598422912397"
+
+    console.log(walletClient, client, signer)
+
+    const result = await client.createListing({
+      params: {
+        items: [{
+          contract: contractAddress,
+          tokenId: tokenID,
+          price: '1000000000000000000',
+        }],
+        orderbook: OrderbookType.DOMA
+      },
+      signer,
+      chainId: 'eip155:11155111',
+      onProgress: (step, progress) => {
+        console.log(`Step: ${step}, Progress: ${progress}%`);
+      }
+    });
+
+    console.log(result)
+
+  }
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -53,6 +101,8 @@ const Hero = () => {
           Secure premium domain names through transparent English auctions. 
           Decentralized, automated, and built for the future of web ownership.
         </p>
+
+        <button onClick={handleListing} className="bg-primary px-4 py-2">Create Listing</button>
 
         <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
           <Button className="btn-hero group">

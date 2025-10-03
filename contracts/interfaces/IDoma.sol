@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.17;
 
 interface IDomaRecord {
     struct NameInfo {
@@ -68,3 +68,8 @@ interface IProxyDomaRecord {
 
   function requestTokenization(TokenizationVoucher calldata voucher, bytes calldata signature) external payable;
 }
+
+interface IERC721Minimal {
+    function ownerOf(uint256 tokenId) external view returns (address owner);
+}
+

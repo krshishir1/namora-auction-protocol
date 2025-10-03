@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import WalletButton from "./WalletButton";
+
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -50,10 +52,11 @@ const Header = () => {
 
           {/* Actions */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button className="bg-primary text-primary-foreground hover:glow-green transition-glow">
+            {/* <Button className="bg-primary text-primary-foreground hover:glow-green transition-glow">
               <Wallet className="w-4 h-4 mr-2" />
               Connect Wallet
-            </Button>
+            </Button> */}
+            <WalletButton />
           </div>
 
           {/* Mobile menu button */}

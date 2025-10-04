@@ -2,7 +2,7 @@
 
 DomaBid is a decentralized auction protocol built on the Doma Protocol, designed to make domain auctions transparent, secure, and globally accessible. Unlike traditional marketplaces—which are centralized, charge heavy fees, lack bidding transparency, and depend on escrow services for trust—DomaBid ensures a seamless and trustless experience. Domain transfers are faster, more secure, and liquid, eliminating the inefficiencies that keep valuable domains locked in outdated systems.
 
-## 🚀 Project Overview
+## Project Overview
 
 At its core, DomaBid leverages the Doma Protocol's infrastructure for domain listing and integrates the Orderbook API to create and manage offers. It is powered by:
 
@@ -36,16 +36,15 @@ DomaBid adopts an **English auction mechanism**, where the price of a domain inc
 - **Graph Protocol** - Subgraph for indexing
 - **IPFS** - Decentralized storage
 
-## 📋 Features
+## Features
 
-- 🔐 **Secure Wallet Integration** - Connect with MetaMask, WalletConnect, and more
-- 🏷️ **Domain Tokenization** - Convert domains into tradeable NFTs
-- ⚡ **English Auctions** - Transparent bidding mechanism
-- 📊 **Real-time Bidding** - Live auction updates
-- 🔄 **Automatic Orderbook Sync** - Seamless integration with Doma Protocol
-- 📱 **Responsive Design** - Works on all devices
-- 🌐 **Multi-chain Support** - Ethereum Sepolia testnet
-
+- **Secure Wallet Integration** - Connect with MetaMask, WalletConnect, and more
+- **Domain Tokenization** - Convert domains into tradeable NFTs
+- **English Auctions** - Transparent bidding mechanism
+- **Real-time Bidding** - Live auction updates
+- **Automatic Orderbook Sync** - Seamless integration with Doma Protocol
+- **Responsive Design** - Works on all devices
+- **Multi-chain Support** - Ethereum Sepolia testnet
 
 
 ### Deployed Contract Addresses

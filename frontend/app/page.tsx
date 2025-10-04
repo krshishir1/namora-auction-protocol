@@ -11,11 +11,8 @@ const Home = () => {
       <Header />
       <main>
         <Hero />
-        <HowItWorks />
-        <LiveAuctions />
-        <TrustProtocol />
       </main>
-      <Footer />
+      {/* <Footer /> */}
     </div>
   );
 };

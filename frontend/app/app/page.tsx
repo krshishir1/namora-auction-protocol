@@ -186,7 +186,7 @@ export default function TestPage() {
 
                 {/* Action Buttons */}
                 <div className="space-y-2">
-                  <Link href={`/test/${domain.name}`} className="block">
+                  <Link href={`/app/${domain.name}`} className="block">
                     <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200">
                       <Eye className="h-4 w-4 mr-2" />
                       View Details

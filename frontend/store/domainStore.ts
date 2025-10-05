@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { getOffersFromAuction } from '@/lib/domaApi';
+
 export interface Domain {
   name: string;
   expiresAt: string;
@@ -79,7 +81,34 @@ interface DomainStore {
   reset: () => void;
 }
 
+function extractAddress(input: string) {
+  const parts = input.split(":");
+  const addr = parts[parts.length - 1] || "";
+  if (/^0x[a-fA-F0-9]{40}$/.test(addr)) return addr;
+  throw new Error("No valid address found");
+}
 
+export async function getLatestBids(account: any, tokenID: string, auctionId: string) {
+  const offers = await getOffersFromAuction([account?.address], tokenID);
+
+  const highestOffer = offers.reduce(
+    (max, offer) => (offer.price > max.price ? offer : max),
+    offers[0] || { price: 0 }
+  );
+
+  const tBids = offers.map((offer: any, index: number) => ({
+    id: offer.id || offer.externalId,
+    auctionId: auctionId,
+    bidder: extractAddress(offer.offererAddress),
+    amount: (
+      offer.price / Math.pow(10, offer.currency.decimals)
+    ).toString(),
+    timestamp: new Date(offer.createdAt).getTime(),
+    isHighest: offer.price === highestOffer.price,
+  }));
+
+  return tBids;
+}
 
 export const useDomainStore = create<DomainStore>()((set, get) => ({
       // Initial state

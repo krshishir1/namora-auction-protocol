@@ -8,8 +8,10 @@ import Header from "@/components/Header";
 import CreateAuctionModal from "@/components/CreateAuctionModal";
 import PlaceBidModal from "@/components/PlaceBidModal";
 import BidsLeaderboard from "@/components/BidsLeaderboard";
+import AcceptOfferModal from "@/components/AcceptOfferModal";
 import { Button } from "@/components/ui/button";
 import { intervalToDuration } from "date-fns";
+import {getLatestBids} from "@/store/domainStore";
 import {
   createAuction as writeCreateAuction,
   getLatestAuctionIdByTokenId,
@@ -17,6 +19,7 @@ import {
   readAuction,
   mapAuctionTuple,
   placeBidAndCreateOfferOnEvent,
+  settleAuction,
 } from "@/lib/interaction";
 import { getDomainFromName, getOffersFromAuction } from "@/lib/domaApi";
 import { formatEther, parseEther } from "viem";
@@ -30,16 +33,17 @@ import {
   DollarSign,
   TrendingUp,
   User,
+  CheckCircle,
 } from "lucide-react";
 
-function extractAddress(input) {
+function extractAddress(input: string) {
   const parts = input.split(":");
   const addr = parts[parts.length - 1] || "";
   if (/^0x[a-fA-F0-9]{40}$/.test(addr)) return addr;
   throw new Error("No valid address found");
 }
 
-function shortenText(text) {
+function shortenText(text: string | number) {
   const str = text.toString();
   if (str.length <= 10) return str;
   return str.slice(0, 5) + "..." + str.slice(-5);
@@ -84,13 +88,13 @@ export default function DomainDetailsPage() {
       if (selectedDomain) {
         const tokenID = selectedDomain.tokens[0].tokenId;
         const result: any = await getAuctionByDomain(BigInt(tokenID));
-        const offers = await getOffersFromAuction([account?.address], tokenID);
+        const offers = await getOffersFromAuction([account?.address || ""], tokenID);
 
         const { auctionId, auction: mapA } = result;
 
         // Find the highest offer price
         const highestOffer = offers.reduce(
-          (max, offer) => (offer.price > max.price ? offer : max),
+          (max: any, offer: any) => (offer.price > max.price ? offer : max),
           offers[0] || { price: 0 }
         );
         const tBids = offers.map((offer: any, index: number) => ({
@@ -119,7 +123,7 @@ export default function DomainDetailsPage() {
             reservePrice: BigInt(mapA.reservePrice).toString(),
             highestBid: BigInt(mapA.highestBid).toString(),
             highestBidder: mapA.highestBidder,
-            status,
+            status: status as "active" | "ended" | "cancelled",
             bids: [...tBids],
             owner: mapA.seller as string,
           };
@@ -181,10 +185,10 @@ export default function DomainDetailsPage() {
     });
     const { hours, minutes } = duration;
 
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
+    if (hours && hours > 0) {
+      return `${hours}h ${minutes || 0}m`;
     }
-    return `${minutes}m`;
+    return `${minutes || 0}m`;
   };
 
   const isOwner =
@@ -205,6 +209,7 @@ export default function DomainDetailsPage() {
 
       await writeCreateAuction({
         tokenId: BigInt(tokenIdStr),
+        domainName: domain.name,
         durationSeconds: BigInt(auctionData.duration * 60 * 60),
         reservePriceWei: parseEther(auctionData.reservePrice || "0"),
         minIncrementWei: parseEther("0.001"),
@@ -236,7 +241,7 @@ export default function DomainDetailsPage() {
           reservePrice: BigInt(mapA.reservePrice).toString(),
           highestBid: BigInt(mapA.highestBid).toString(),
           highestBidder: mapA.highestBidder,
-          status,
+          status: status as "active" | "ended" | "cancelled",
           bids: [],
           owner: mapA.seller as string,
         };
@@ -254,6 +259,8 @@ export default function DomainDetailsPage() {
   const handlePlaceBid = async (auctionId: string, bidAmountEth: string) => {
     if (!account?.address) return;
     try {
+      console.log("Placing bid for auction:", auctionId, "Amount:", bidAmountEth);
+      
       // Bid on-chain and create DOMA offer after BidPlaced event
       const is_success = await placeBidAndCreateOfferOnEvent({
         auctionId: BigInt(auctionId),
@@ -274,20 +281,21 @@ export default function DomainDetailsPage() {
         const status = settled || endMs <= now ? "ended" : "active";
 
         // update existing auction in store
-        recordBid(auctionId, {
-          id: `bid-${Date.now()}`,
-          auctionId,
-          bidder: mapA.highestBidder as string,
-          amount: BigInt(mapA.highestBid).toString(),
-          timestamp: Date.now(),
-          isHighest: true,
-        });
+        // recordBid(auctionId, {
+        //   id: `bid-${Date.now()}`,
+        //   auctionId,
+        //   bidder: mapA.highestBidder as string,
+        //   amount: BigInt(mapA.highestBid).toString(),
+        //   timestamp: Date.now(),
+        //   isHighest: true,
+        // });
 
         const prevAuction = useDomainStore
           .getState()
           .auctions.find((el) => el.id === auctionId);
 
         console.log("prev auction: ", prevAuction);
+        const bids = await getLatestBids(account, domain.tokens[0].tokenId, auctionId)
         // also update top-level fields
         const newAuction = {
           ...prevAuction,
@@ -295,15 +303,67 @@ export default function DomainDetailsPage() {
           endTime: endMs,
           highestBid: formatEther(BigInt(mapA.highestBid)),
           highestBidder: mapA.highestBidder as string,
-          status,
+          status: status as "active" | "ended" | "cancelled",
+          bids,
         };
 
         console.log("new auction: ", newAuction);
-        upsertAuction(newAuction);
+        upsertAuction(newAuction as any);
         setDomainAuctions(getAuctionsByDomain(domain.name));
       }
     } catch (err) {
       console.error("placeBid failed", err);
+      
+      // Show user-friendly error message
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage.includes("Transaction receipt not found")) {
+        alert("Transaction is being processed. Please wait a moment and check the auction status again.");
+      } else if (errorMessage.includes("insufficient funds")) {
+        alert("Insufficient funds. Please ensure you have enough ETH for the bid and gas fees.");
+      } else if (errorMessage.includes("bid value must be more")) {
+        alert("Bid amount is too low. Please place a higher bid.");
+      } else if (errorMessage.includes("auction not active")) {
+        alert("This auction is no longer active.");
+      } else {
+        alert(`Bid failed: ${errorMessage}`);
+      }
+    }
+  };
+
+  const handleAcceptOffer = async (auctionId: string) => {
+    try {
+      
+      
+      // Refresh auction state after settlement
+      const a: any = await readAuction(BigInt(auctionId));
+      const mapA = mapAuctionTuple(a);
+      const startMs = Number(mapA.startTime) * 1000;
+      const endMs = Number(mapA.endTime) * 1000;
+      const settled = Boolean(mapA.settled);
+      const now = Date.now();
+      const status = settled || endMs <= now ? "ended" : "active";
+
+      const prevAuction = useDomainStore
+        .getState()
+        .auctions.find((el) => el.id === auctionId);
+
+      const updatedAuction = {
+        ...prevAuction,
+        id: auctionId,
+        startTime: startMs,
+        endTime: endMs,
+        highestBid: formatEther(BigInt(mapA.highestBid)),
+        highestBidder: mapA.highestBidder as string,
+        status: "ended" as "active" | "ended" | "cancelled",
+      };
+
+      upsertAuction(updatedAuction);
+      setDomainAuctions(getAuctionsByDomain(domain.name));
+      
+      console.log("Auction settled successfully");
+    } catch (err) {
+      console.error("settleAuction failed", err);
+      throw err;
     }
   };
 
@@ -329,6 +389,10 @@ export default function DomainDetailsPage() {
 
   const activeAuction = domainAuctions.find(
     (auction) => auction.status === "active"
+  );
+  
+  const completedAuction = domainAuctions.find(
+    (auction) => auction.status === "ended" && auction.endTime <= Date.now()
   );
 
   return (
@@ -422,23 +486,53 @@ export default function DomainDetailsPage() {
               Owner Actions
             </h2>
 
-            {!activeAuction ? (
-              <CreateAuctionModal
-                domain={domain}
-                onAuctionCreate={handleCreateAuction}
-              >
-                <Button className="bg-green-600 hover:bg-green-700 text-white">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Create Auction
-                </Button>
-              </CreateAuctionModal>
-            ) : (
-              <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-lg">
-                <p className="text-blue-400">
-                  You already have an active auction for this domain.
-                </p>
-              </div>
-            )}
+            <div className="space-y-4">
+              {!activeAuction && !completedAuction ? (
+                <CreateAuctionModal
+                  domain={domain}
+                  onAuctionCreate={handleCreateAuction}
+                >
+                  <Button className="bg-green-600 hover:bg-green-700 text-white">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Create Auction
+                  </Button>
+                </CreateAuctionModal>
+              ) : activeAuction ? (
+                <div className="space-y-3">
+                  <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-lg">
+                    <p className="text-blue-400 mb-3">
+                      You have an active auction for this domain. You can view current bids but cannot accept offers until the auction ends.
+                    </p>
+                    <AcceptOfferModal
+                      auction={activeAuction}
+                      onAcceptOffer={handleAcceptOffer}
+                    >
+                      <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        View Current Bids
+                      </Button>
+                    </AcceptOfferModal>
+                  </div>
+                </div>
+              ) : completedAuction ? (
+                <div className="space-y-3">
+                  <div className="bg-yellow-900/20 border border-yellow-500/30 p-4 rounded-lg">
+                    <p className="text-yellow-400 mb-3">
+                      Your auction has ended. You can now accept the highest offer.
+                    </p>
+                    <AcceptOfferModal
+                      auction={completedAuction}
+                      onAcceptOffer={handleAcceptOffer}
+                    >
+                      <Button className="bg-yellow-600 hover:bg-yellow-700 text-white">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Review & Accept Offer
+                      </Button>
+                    </AcceptOfferModal>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         )}
 
@@ -457,7 +551,7 @@ export default function DomainDetailsPage() {
                   <span className="text-gray-300 text-sm">Current Bid</span>
                 </div>
                 <p className="text-white text-2xl font-bold">
-                  {formatEther(BigInt(activeAuction.highestBid))} ETH
+                  {Number(activeAuction.highestBid) < 1 ? activeAuction.highestBid : formatEther(BigInt(activeAuction.highestBid))} ETH
                 </p>
               </div>
 
@@ -505,6 +599,50 @@ export default function DomainDetailsPage() {
 
         {/* Bids Leaderboard */}
         {activeAuction && <BidsLeaderboard auction={activeAuction} />}
+
+        {/* Completed Auction */}
+        {completedAuction && !isOwner && (
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-red-400" />
+              Auction Results
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-gray-700/30 p-4 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <DollarSign className="h-4 w-4 text-green-400" />
+                  <span className="text-gray-300 text-sm">Winning Bid</span>
+                </div>
+                <p className="text-white text-2xl font-bold">
+                  {formatEther(BigInt(completedAuction.highestBid))} ETH
+                </p>
+              </div>
+
+              <div className="bg-gray-700/30 p-4 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="h-4 w-4 text-blue-400" />
+                  <span className="text-gray-300 text-sm">Winner</span>
+                </div>
+                <p className="text-white text-lg font-mono">
+                  {completedAuction.highestBidder.slice(0, 6)}...{completedAuction.highestBidder.slice(-4)}
+                </p>
+              </div>
+
+              <div className="bg-gray-700/30 p-4 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="h-4 w-4 text-red-400" />
+                  <span className="text-gray-300 text-sm">Status</span>
+                </div>
+                <p className="text-white text-lg font-bold text-red-400">
+                  Auction Ended
+                </p>
+              </div>
+            </div>
+
+            <BidsLeaderboard auction={completedAuction} />
+          </div>
+        )}
 
         {/* Domain Details */}
         <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 mt-8">

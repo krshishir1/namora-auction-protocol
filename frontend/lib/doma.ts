@@ -10,7 +10,7 @@ export const doma_config = {
   }
 
   export const auction_address = {
-    sepolia: "0xf7a5919AbF08A7F5D5088988aa0c3deD9917fe4C"
+    sepolia: "0xbFB961e25681d59cd65Bbf4D462F5180ABcCC019"
   }
 
 

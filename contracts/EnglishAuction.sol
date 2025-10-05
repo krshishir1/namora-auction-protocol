@@ -139,10 +139,11 @@ contract DomaDomainAuction is ReentrancyGuard {
         // Track user's bid amount for this auction
         userBids[auctionId][msg.sender] = amount;
 
-        emit BidPlaced(auctionId, a.tokenId, a.domainName, msg.sender, msg.value);
-
+        // Update highest bid and bidder
         a.highestBid = amount;
         a.highestBidder = msg.sender;
+
+        emit BidPlaced(auctionId, a.tokenId, a.domainName, msg.sender, msg.value);
     }
 
     /** Get user's bid amount for a specific auction */

@@ -1,7 +1,7 @@
 import { useAccountStore } from '@/store/accountStore'
 import { auction_address, tokenContractAddress, tokenCurrencyAddress, doma_config } from '@/lib/doma'
 import { parseEther, type Address, decodeEventLog } from 'viem'
-import { createDomaOrderbookClient, OrderbookType } from '@doma-protocol/orderbook-sdk'
+import { createDomaOrderbookClient, getDomaOrderbookClient, OrderbookType } from '@doma-protocol/orderbook-sdk'
 
 // Import Hardhat artifact (ABI)
 // Ensure this path matches your generated artifacts structure
@@ -160,16 +160,43 @@ export async function placeBidAndCreateOfferOnEvent(
   const address = getAuctionAddress()
   const value = params.valueEth ? parseEther(params.valueEth) : parseEther('0.001')
 
-  const hash = await walletClient.writeContract({
-    address,
-    abi: AuctionArtifact.abi as Abi,
-    functionName: 'placeBid',
-    args: [params.auctionId, params.bidAmountWei],
-    value,
-    account: (account?.address || undefined) as Address | undefined,
-  })
+  let hash
+  try {
+    hash = await walletClient.writeContract({
+      address,
+      abi: AuctionArtifact.abi as Abi,
+      functionName: 'placeBid',
+      args: [params.auctionId, params.bidAmountWei],
+      value,
+      account: (account?.address || undefined) as Address | undefined,
+    })
+    console.log("Transaction submitted successfully. Hash:", hash)
+  } catch (error) {
+    console.error("Failed to submit transaction:", error)
+    throw new Error(`Failed to submit bid transaction: ${error instanceof Error ? error.message : String(error)}`)
+  }
 
-  const receipt = await publicClient.waitForTransactionReceipt({ hash })
+  // Wait for transaction receipt with timeout and retry logic
+  let receipt
+  let retries = 3
+  while (retries > 0) {
+    try {
+      receipt = await publicClient.waitForTransactionReceipt({ 
+        hash,
+        timeout: 60000, // 60 seconds timeout
+        confirmations: 1
+      })
+      break
+    } catch (error) {
+      retries--
+      console.log(`Transaction receipt not found, retries left: ${retries}`, error)
+      if (retries === 0) {
+        throw new Error(`Transaction receipt not found after multiple attempts. Hash: ${hash}`)
+      }
+      // Wait 2 seconds before retry
+      await new Promise(resolve => setTimeout(resolve, 2000))
+    }
+  }
 
   // Scan logs for BidPlaced event (signature now includes domainName)
   let tokenIdFromEvent: bigint | null = null
@@ -191,31 +218,40 @@ export async function placeBidAndCreateOfferOnEvent(
     }
   }
 
+  console.log("tokenIdFromEvent: ", tokenIdFromEvent, receipt)
+
   if (tokenIdFromEvent !== null) {
     const state = useAccountStore.getState() as any
     const signer = state.signer
     const chain = state.chain
     if (signer && chain?.id) {
-      const client = await createDomaOrderbookClient(doma_config as any)
-      await client.createOffer({
-        params: {
-          items: [
-            {
-              contract: tokenContractAddress.sepolia,
-              tokenId: String(tokenIdFromEvent),
-              currencyContractAddress: tokenCurrencyAddress.sepolia_weth,
-              price: params.bidAmountWei.toString(),
-            },
-          ],
-          orderbook: OrderbookType.DOMA,
-          expirationTime: Math.floor(Date.now() / 1000) + 86400,
-        },
-        signer,
-        chainId: `eip155:${chain.id}`,
-        onProgress: (step: string, progress: number) => {
-          console.log(`Creating offer: ${step} (${progress}%)`)
-        },
-      })
+      try {
+        const client = await createDomaOrderbookClient(doma_config as any)
+        await client.createOffer({
+          params: {
+            items: [
+              {
+                contract: tokenContractAddress.sepolia,
+                tokenId: String(tokenIdFromEvent),
+                currencyContractAddress: tokenCurrencyAddress.sepolia_weth,
+                price: params.bidAmountWei.toString(),
+              },
+            ],
+            orderbook: OrderbookType.DOMA,
+            expirationTime: Math.floor(Date.now() / 1000) + 86400,
+          },
+          signer,
+          chainId: `eip155:${chain.id}`,
+          onProgress: (step: string, progress: number) => {
+            console.log(`Creating offer: ${step} (${progress}%)`)
+          },
+        })
+        console.log("DOMA offer created successfully")
+      } catch (error) {
+        console.error("Failed to create DOMA offer:", error)
+        // Don't throw here - the bid was successful, just the offer creation failed
+        // The user can manually create the offer later if needed
+      }
     }
   }
 
@@ -258,6 +294,32 @@ export async function readPendingWithdrawal(user: Address) {
     functionName: 'pendingWithdrawals',
     args: [user],
   })
+}
+
+export async function acceptOffer(offer: any) {
+
+  console.log("accepting offer: ", offer)
+
+  const state = useAccountStore.getState() as any
+  const signer = state.signer
+  const chain = state.chain
+  if (signer && chain?.id) {
+    const client = await createDomaOrderbookClient(doma_config as any)
+    const result = await client.acceptOffer({
+      params: {
+        orderId: offer.id,
+      },
+      signer,
+      chainId: `eip155:${chain.id}`,
+      onProgress: (step, progress) => {
+        console.log(`Accepting offer: ${step} (${progress}%)`);
+      },
+    });
+
+    console.log("accept offer result: ", result)
+    return result
+  }
+
 }
 
 

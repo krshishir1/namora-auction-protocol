@@ -7,7 +7,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import WalletButton from "./WalletButton";
 
-
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -53,25 +52,8 @@ const Header = () => {
         {isMenuOpen && (
           <div className="md:hidden border-t border-border py-4">
             <nav className="flex flex-col space-y-4">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`px-2 transition-colors ${
-                    isActive(item.href)
-                      ? "text-primary font-semibold"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {item.name}
-                </Link>
-              ))}
               <div className="pt-4 border-t border-border">
-                <Button className="w-full bg-primary text-primary-foreground">
-                  <Wallet className="w-4 h-4 mr-2" />
-                  Connect Wallet
-                </Button>
+                <WalletButton />
               </div>
             </nav>
           </div>
